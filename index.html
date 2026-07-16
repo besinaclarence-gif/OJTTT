@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OJT Time Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Print styles for PDF export */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #dtr, #dtr * {
+                visibility: visible;
+            }
+            #dtr {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                background: white !important;
+            }
+            #dtr .content-card {
+                max-width: 100% !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+            #dtr .close-reports, #dtr #dtrPrevMonth, #dtr #dtrNextMonth, #dtr #exportPdfBtn {
+                display: none !important;
+            }
+            #dtr .reports-overlay {
+                background: white !important;
+            }
+            .dtr-table-container {
+                max-height: none !important;
+                overflow: visible !important;
+            }
+            .student-info {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .dtr-table th {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .dtr-stat {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Decorative Background Elements -->
+    <div class="bg-decoration">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+    </div>
+
+    <!-- Login Page -->
+    <div id="loginPage" class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>Good Day!</h1>
+                <p>Sign in or register to track your OJT hours</p>
+            </div>
+            
+            <!-- Tabs for Login/Register -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="loginTabBtn">Sign In</button>
+                <button class="auth-tab" id="registerTabBtn">Register</button>
+            </div>
+            
+            <!-- Login Form -->
+            <div id="loginForm">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="emailInput" placeholder="Enter your email">
+                </div>
+                
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="passwordInput" placeholder="Enter your password">
+                </div>
+                
+                <button class="btn btn-primary" id="loginBtn">Sign In</button>
+                <p class="error-message" id="loginErrorMessage">Invalid email or password</p>
+            </div>
+            
+            <!-- Register Form -->
+            <div id="registerForm" style="display: none;">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="registerName" placeholder="Enter your full name">
+                </div>
+                
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="registerEmail" placeholder="Enter your email">
+                </div>
+                
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="registerPassword" placeholder="Create a password">
+                </div>
+                
+                <div class="form-group">
+                    <label>Course/Program</label>
+                    <input type="text" id="registerCourse" placeholder="e.g., BS Information Technology">
+                </div>
+                
+                <div class="form-group">
+                    <label>School</label>
+                    <input type="text" id="registerSchool" placeholder="Your school name">
+                </div>
+                
+                <button class="btn btn-primary" id="registerBtn">Create Account</button>
+                <p class="error-message" id="registerErrorMessage" style="display: none;">Error creating account</p>
+                <p class="success-message" id="registerSuccessMessage" style="display: none;">Account created successfully!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="mainApp" class="app-container" style="display: none;">
+        <button class="logout-btn" id="logoutBtn">Logout</button>
+        
+        <!-- Header -->
+        <div class="header">
+            <h1>Good Day!</h1>
+            <div class="user-avatar">👤</div>
+        </div>
+
+        <!-- Main Content Layout -->
+        <div class="main-layout">
+            <!-- Left Side - Calendar -->
+            <div class="calendar-section">
+                <!-- Tiny Stats -->
+                <div class="tiny-stats">
+                    <div class="tiny-stat">
+                        <span class="tiny-label">Rendered</span>
+                        <span class="tiny-value" id="renderedHours">0</span>
+                    </div>
+                    <div class="tiny-stat">
+                        <span class="tiny-label">Remaining</span>
+                        <span class="tiny-value" id="remainingHours">1800</span>
+                    </div>
+                    <div class="tiny-stat">
+                        <span class="tiny-label">Target</span>
+                        <span class="tiny-value">1800</span>
+                    </div>
+                </div>
+
+                <!-- Monthly Totals Preview -->
+                <div class="dashboard-monthly-totals">
+                    <div class="monthly-totals-header dashboard-monthly-totals-header">
+                        <h4>Monthly Hours</h4>
+                        <span>Current summary</span>
+                    </div>
+                    <div class="monthly-totals-list dashboard-monthly-totals-list" id="dashboardMonthlyTotalsList"></div>
+                </div>
+
+                <!-- Calendar -->
+                <div class="calendar-card">
+                    <div class="calendar-header">
+                        <button id="prevMonth">&lt;</button>
+                        <span id="monthYear"></span>
+                        <button id="nextMonth">&gt;</button>
+                    </div>
+                    <div class="calendar-grid" id="calendarGrid"></div>
+                </div>
+            </div>
+
+            <!-- Right Side - Time Input & Controls -->
+            <div class="controls-section">
+                <!-- Tabs -->
+                <div class="tabs-container">
+                    <button class="tab-btn active" data-tab="calendar">📅 Calendar</button>
+                    <button class="tab-btn" data-tab="dtr">📊 DTR Report</button>
+                    <button class="tab-btn" data-tab="reports">📁 Documents</button>
+                </div>
+
+                <!-- Time Input Panel -->
+                <div class="time-input-panel" id="timeInputSection">
+                    <div class="selected-date-title" id="selectedDateTitle">Select a date</div>
+                    <div class="time-input-row">
+                        <div class="time-input">
+                            <label>Time In</label>
+                            <input type="time" id="timeIn">
+                        </div>
+                        <div class="time-input">
+                            <label>Time Out</label>
+                            <input type="time" id="timeOut">
+                        </div>
+                    </div>
+                    <div class="button-row">
+                        <button class="btn btn-primary" id="saveBtn">Save</button>
+                        <button class="btn btn-secondary" id="deleteBtn">Delete</button>
+                    </div>
+                    <div class="button-row" id="holidaySection" style="display: none;">
+                        <button class="btn btn-tertiary" id="toggleHolidayBtn">Mark Holiday</button>
+                    </div>
+                </div>
+
+                <!-- End Date Card -->
+                <div class="end-date-card">
+                    <span class="end-icon">📅</span>
+                    <span id="endDateValue">Estimated Completion</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports Overlay -->
+    <div id="reports" class="reports-overlay" style="display: none;">
+        <div class="content-card">
+            <div class="card-header">
+                <h3>Accomplishment Reports</h3>
+                <button class="close-reports" onclick="closeReports()">✕</button>
+            </div>
+            <div class="reports-grid">
+                <div class="report-card">
+                    <h4>📋 Daily Reports</h4>
+                    <div class="upload-area" onclick="document.getElementById('dailyInput').click()">
+                        <input type="file" id="dailyInput" accept=".pdf,.doc,.docx" onchange="handleFileUpload(event, 'daily')">
+                        <p>Click to upload</p>
+                    </div>
+                    <div class="file-list" id="dailyList"></div>
+                </div>
+                <div class="report-card">
+                    <h4>📊 Weekly Reports</h4>
+                    <div class="upload-area" onclick="document.getElementById('weeklyInput').click()">
+                        <input type="file" id="weeklyInput" accept=".pdf,.doc,.docx" onchange="handleFileUpload(event, 'weekly')">
+                        <p>Click to upload</p>
+                    </div>
+                    <div class="file-list" id="weeklyList"></div>
+                </div>
+                <div class="report-card">
+                    <h4>📈 Monthly Reports</h4>
+                    <div class="upload-area" onclick="document.getElementById('monthlyInput').click()">
+                        <input type="file" id="monthlyInput" accept=".pdf,.doc,.docx" onchange="handleFileUpload(event, 'monthly')">
+                        <p>Click to upload</p>
+                    </div>
+                    <div class="file-list" id="monthlyList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DTR Report Overlay -->
+    <div id="dtr" class="reports-overlay" style="display: none;">
+        <div class="content-card dtr-content">
+            <div class="card-header">
+                <div class="dtr-header-left">
+                    <h3>📊 Daily Time Record</h3>
+                </div>
+                <div class="dtr-header-right">
+                    <button class="btn btn-secondary" id="dtrPrevMonth">&lt; Previous</button>
+                    <span id="dtrMonthYear" style="font-weight: 700; color: #333333; font-size: 1.1rem; margin: 0 15px;"></span>
+                    <button class="btn btn-secondary" id="dtrNextMonth">Next &gt;</button>
+                    <button class="btn btn-primary" id="exportPdfBtn">📄 Export PDF</button>
+                    <button class="close-reports" onclick="closeDtr()">✕</button>
+                </div>
+            </div>
+            
+            <!-- Student Info Header -->
+            <div class="student-info">
+                <div class="info-row">
+                    <span class="info-label">Name:</span>
+                    <span class="info-value" id="dtrStudentName">Clarence Besina</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Course/Program:</span>
+                    <span class="info-value" id="dtrStudentCourse">Bachelor of Science in Information Technology</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">School:</span>
+                    <span class="info-value" id="dtrStudentSchool">Liceo de Cagayan University</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Required Hours:</span>
+                    <span class="info-value">1800 Hours</span>
+                </div>
+            </div>
+
+            <!-- DTR Summary Stats -->
+            <div class="dtr-stats">
+                <div class="dtr-stat">
+                    <span class="dtr-stat-icon">📅</span>
+                    <div>
+                        <div class="dtr-stat-value" id="dtrTotalDays">0</div>
+                        <div class="dtr-stat-label">Working Days</div>
+                    </div>
+                </div>
+                <div class="dtr-stat">
+                    <span class="dtr-stat-icon">⏱️</span>
+                    <div>
+                        <div class="dtr-stat-value" id="dtrTotalHours">0</div>
+                        <div class="dtr-stat-label">Total Hours</div>
+                    </div>
+                </div>
+                <div class="dtr-stat">
+                    <span class="dtr-stat-icon">📈</span>
+                    <div>
+                        <div class="dtr-stat-value" id="dtrAvgHours">0</div>
+                        <div class="dtr-stat-label">Avg/Day</div>
+                    </div>
+                </div>
+                <div class="dtr-stat">
+                    <span class="dtr-stat-icon">🎯</span>
+                    <div>
+                        <div class="dtr-stat-value" id="dtrRemaining">1800</div>
+                        <div class="dtr-stat-label">Remaining</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monthly Totals -->
+            <div class="monthly-totals-card">
+                <div class="monthly-totals-header">
+                    <h4>Monthly Hours Breakdown</h4>
+                    <span>All saved records</span>
+                </div>
+                <div class="monthly-totals-list" id="monthlyTotalsList"></div>
+            </div>
+
+            <!-- DTR Table -->
+            <div class="dtr-table-container">
+                <table class="dtr-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Day</th>
+                            <th>Time In</th>
+                            <th>Time Out</th>
+                            <th>Hours</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dtrTableBody">
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="4" style="text-align: right; font-weight: 800; font-size: 1.1rem;">TOTAL:</td>
+                            <td id="dtrTotalHoursFooter" style="font-weight: 800; font-size: 1.2rem; color: #333333;">0 hours</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" id="previewModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Document Preview</h2>
+                <button class="close-btn" onclick="closeModal()">✕</button>
+            </div>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
