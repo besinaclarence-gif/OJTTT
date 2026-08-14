@@ -7,6 +7,8 @@ const DEFAULT_USERS = {
         school: "Liceo de Cagayan University",
         timeRecords: {},
         holidays: [],
+        absences: [],
+        timePreferences: { timeIn: '08:00', timeOut: '18:00' },
         documents: { daily: [], weekly: [], monthly: [] }
     }
 };
@@ -17,9 +19,17 @@ let currentUser = null;
 let currentDate = new Date();
 let selectedDate = null;
 let dtrCurrentDate = new Date();
+let holidayCache = {};
+
+const OJT_TARGET_HOURS = 1800;
+const HOLIDAY_COUNTRY_CODE = 'PH';
+const HOLIDAY_API_BASE_URL = 'https://date.nager.at/api/v3/PublicHolidays';
 
 // Initialize app
 function initApp() {
+    loadHolidayCache();
+    populateTimeDropdowns();
+
     // First, check if we have old data but haven't migrated it
     const oldTimeRecords = localStorage.getItem('timeRecords');
     const hasOldData = oldTimeRecords && Object.keys(JSON.parse(oldTimeRecords)).length > 0;
@@ -88,6 +98,15 @@ function loadUsers() {
             saveUsers();
         }
     }
+
+    Object.values(users).forEach(user => {
+        if (!user.absences) {
+            user.absences = [];
+        }
+        if (!user.timePreferences) {
+            user.timePreferences = { timeIn: '08:00', timeOut: '18:00' };
+        }
+    });
 }
 
 // Save users to localStorage
@@ -162,6 +181,8 @@ function handleRegister() {
         school: school,
         timeRecords: {},
         holidays: [],
+        absences: [],
+        timePreferences: { timeIn: '08:00', timeOut: '18:00' },
         documents: { daily: [], weekly: [], monthly: [] }
     };
     
@@ -184,6 +205,8 @@ function loginUser(email, saveState = true) {
     if (saveState) {
         localStorage.setItem('currentUserEmail', email);
     }
+
+    populateTimeDropdowns();
     
     document.getElementById('loginPage').style.display = 'none';
     document.getElementById('mainApp').style.display = 'flex';
@@ -193,10 +216,7 @@ function loginUser(email, saveState = true) {
     document.getElementById('dtrStudentCourse').textContent = currentUser.course;
     document.getElementById('dtrStudentSchool').textContent = currentUser.school;
     
-    renderCalendar();
-    updateProgress();
-        renderMonthlyTotals();
-    renderDocuments();
+    void refreshDashboard();
 }
 
 // Logout
@@ -219,18 +239,19 @@ function setupAppListeners() {
     // Calendar navigation
     document.getElementById('prevMonth').addEventListener('click', () => {
         currentDate.setMonth(currentDate.getMonth() - 1);
-        renderCalendar();
+        void loadHolidayYears([currentDate.getFullYear()]).then(renderCalendar);
     });
     
     document.getElementById('nextMonth').addEventListener('click', () => {
         currentDate.setMonth(currentDate.getMonth() + 1);
-        renderCalendar();
+        void loadHolidayYears([currentDate.getFullYear()]).then(renderCalendar);
     });
     
     // Save/Delete buttons
     document.getElementById('saveBtn').addEventListener('click', saveTimeRecord);
     document.getElementById('deleteBtn').addEventListener('click', deleteTimeRecord);
     document.getElementById('toggleHolidayBtn').addEventListener('click', toggleHoliday);
+    document.getElementById('toggleAbsentBtn').addEventListener('click', toggleAbsence);
     
     // Tab functionality
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -271,12 +292,12 @@ function setupAppListeners() {
     // DTR Navigation
     document.getElementById('dtrPrevMonth').addEventListener('click', () => {
         dtrCurrentDate.setMonth(dtrCurrentDate.getMonth() - 1);
-        renderDtrReport();
+        void loadHolidayYears([dtrCurrentDate.getFullYear()]).then(renderDtrReport);
     });
     
     document.getElementById('dtrNextMonth').addEventListener('click', () => {
         dtrCurrentDate.setMonth(dtrCurrentDate.getMonth() + 1);
-        renderDtrReport();
+        void loadHolidayYears([dtrCurrentDate.getFullYear()]).then(renderDtrReport);
     });
     
     // PDF Export
@@ -307,12 +328,247 @@ function calculateHours(timeIn, timeOut) {
     
     let totalMinutes = (outH * 60 + outM) - (inH * 60 + inM);
     
-    // Subtract 1 hour lunch break if working 6+ hours
+    // Subtract 1 hour lunch break if working 6+ hours, then cap one day at 8 credited hours.
     if (totalMinutes >= 360) {
         totalMinutes -= 60;
     }
     
-    return parseFloat((totalMinutes / 60).toFixed(2));
+    return parseFloat(Math.min(totalMinutes / 60, 8).toFixed(2));
+}
+
+function getMostCommonTime(type) {
+    if (!currentUser) return type === 'timeIn' ? '08:00' : '18:00';
+
+    const preferenceValue = currentUser.timePreferences?.[type];
+    if (preferenceValue) return preferenceValue;
+
+    const counts = {};
+    Object.values(currentUser.timeRecords).forEach(record => {
+        const value = record?.[type];
+        if (!value) return;
+        counts[value] = (counts[value] || 0) + 1;
+    });
+
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    return entries.length > 0 ? entries[0][0] : (type === 'timeIn' ? '08:00' : '18:00');
+}
+
+function updateTimePreferences(timeIn, timeOut) {
+    if (!currentUser) return;
+
+    currentUser.timePreferences = {
+        timeIn: timeIn || currentUser.timePreferences?.timeIn || '08:00',
+        timeOut: timeOut || currentUser.timePreferences?.timeOut || '18:00'
+    };
+    saveUsers();
+}
+
+function populateTimeDropdowns() {
+    const timeInSelect = document.getElementById('timeIn');
+    const timeOutSelect = document.getElementById('timeOut');
+
+    if (!timeInSelect || !timeOutSelect) return;
+
+    const buildOptions = () => {
+        const options = [];
+        options.push({ value: '', label: 'Select time' });
+
+        const preferredIn = getMostCommonTime('timeIn');
+        const preferredOut = getMostCommonTime('timeOut');
+        const favorites = [preferredIn, preferredOut, '07:00', '07:30', '08:00', '08:30', '12:00', '13:00', '16:00', '17:00', '18:00'];
+
+        favorites.forEach(value => {
+            if (!value || options.some(option => option.value === value)) return;
+            options.push({ value, label: `${formatTime(value)}${value === preferredIn || value === preferredOut ? '  • usual' : ''}` });
+        });
+
+        for (let hour = 0; hour < 24; hour++) {
+            for (let minute = 0; minute < 60; minute += 30) {
+                const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+                if (options.some(option => option.value === value)) continue;
+                options.push({ value, label: formatTime(value) });
+            }
+        }
+
+        return options;
+    };
+
+    const options = buildOptions();
+
+    [timeInSelect, timeOutSelect].forEach(select => {
+        select.innerHTML = options.map(option => `<option value="${option.value}">${option.label}</option>`).join('');
+    });
+
+    document.getElementById('timeInLabel').textContent = `Time In (${formatTime(getMostCommonTime('timeIn'))} usual)`;
+    document.getElementById('timeOutLabel').textContent = `Time Out (${formatTime(getMostCommonTime('timeOut'))} usual)`;
+}
+
+function setDropdownValue(selectId, value) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+
+    if (value && !Array.from(select.options).some(option => option.value === value)) {
+        const customOption = document.createElement('option');
+        customOption.value = value;
+        customOption.textContent = `${formatTime(value)} (saved)`;
+        customOption.dataset.custom = 'true';
+        select.appendChild(customOption);
+    }
+
+    select.value = value || '';
+}
+
+function applyUsualTimesIfEmpty() {
+    const timeInSelect = document.getElementById('timeIn');
+    const timeOutSelect = document.getElementById('timeOut');
+
+    if (timeInSelect && !timeInSelect.value) {
+        timeInSelect.value = getMostCommonTime('timeIn');
+    }
+
+    if (timeOutSelect && !timeOutSelect.value) {
+        timeOutSelect.value = getMostCommonTime('timeOut');
+    }
+}
+
+function loadHolidayCache() {
+    const savedCache = localStorage.getItem('ojtHolidayCache');
+    if (!savedCache) {
+        holidayCache = {};
+        return;
+    }
+
+    try {
+        holidayCache = JSON.parse(savedCache) || {};
+    } catch (error) {
+        holidayCache = {};
+    }
+}
+
+function saveHolidayCache() {
+    localStorage.setItem('ojtHolidayCache', JSON.stringify(holidayCache));
+}
+
+function getHolidayDatesForYear(year) {
+    return holidayCache[year] || [];
+}
+
+function getRecordYears(timeRecords = currentUser?.timeRecords || {}) {
+    return [...new Set(Object.keys(timeRecords).map(dateStr => Number(dateStr.slice(0, 4))))]
+        .filter(year => Number.isFinite(year));
+}
+
+async function ensureHolidayYearLoaded(year) {
+    if (!Number.isFinite(year)) return [];
+
+    if (holidayCache[year]) {
+        return holidayCache[year];
+    }
+
+    const response = await fetch(`${HOLIDAY_API_BASE_URL}/${year}/${HOLIDAY_COUNTRY_CODE}`);
+    if (!response.ok) {
+        holidayCache[year] = [];
+        saveHolidayCache();
+        return [];
+    }
+
+    const holidays = await response.json();
+    holidayCache[year] = holidays
+        .filter(holiday => holiday && holiday.date)
+        .map(holiday => holiday.date);
+    saveHolidayCache();
+    return holidayCache[year];
+}
+
+async function loadHolidayYears(years) {
+    const uniqueYears = [...new Set(years)].filter(year => Number.isFinite(year));
+    if (uniqueYears.length === 0) return;
+
+    await Promise.all(uniqueYears.map(year => ensureHolidayYearLoaded(year)));
+}
+
+function isManualHoliday(dateStr) {
+    return Boolean(currentUser && currentUser.holidays.includes(dateStr));
+}
+
+function isAbsentDate(dateStr) {
+    return Boolean(currentUser && currentUser.absences.includes(dateStr));
+}
+
+function isApiHoliday(dateStr) {
+    const year = Number(dateStr.slice(0, 4));
+    return getHolidayDatesForYear(year).includes(dateStr);
+}
+
+function isHolidayDate(dateStr) {
+    return isManualHoliday(dateStr) || isApiHoliday(dateStr);
+}
+
+function isCountableWorkDate(dateStr) {
+    const dateParts = dateStr.split('-');
+    const date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+    return date.getDay() !== 0 && !isHolidayDate(dateStr) && !isAbsentDate(dateStr);
+}
+
+function getCountableRecords() {
+    return Object.entries(currentUser.timeRecords).filter(([dateStr]) => isCountableWorkDate(dateStr));
+}
+
+function formatLocalDateKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function updateHolidayButtonState(dateStr) {
+    const toggleHolidayBtn = document.getElementById('toggleHolidayBtn');
+    const manualHoliday = isManualHoliday(dateStr);
+    const apiHoliday = isApiHoliday(dateStr);
+
+    if (apiHoliday && !manualHoliday) {
+        toggleHolidayBtn.textContent = 'Official Holiday';
+        toggleHolidayBtn.disabled = true;
+        return;
+    }
+
+    toggleHolidayBtn.disabled = false;
+    toggleHolidayBtn.textContent = manualHoliday ? 'Unmark Holiday' : 'Mark Holiday';
+}
+
+function updateAbsenceButtonState(dateStr) {
+    const toggleAbsentBtn = document.getElementById('toggleAbsentBtn');
+    if (!toggleAbsentBtn) return;
+
+    const dateParts = dateStr.split('-');
+    const date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+    const unavailable = date.getDay() === 0 || isHolidayDate(dateStr);
+
+    if (unavailable) {
+        toggleAbsentBtn.disabled = true;
+        toggleAbsentBtn.textContent = 'Mark Absent';
+        return;
+    }
+
+    toggleAbsentBtn.disabled = false;
+    toggleAbsentBtn.textContent = isAbsentDate(dateStr) ? 'Unmark Absent' : 'Mark Absent';
+}
+
+async function refreshDashboard() {
+    if (!currentUser) return;
+
+    const yearsToLoad = new Set([
+        currentDate.getFullYear(),
+        dtrCurrentDate.getFullYear(),
+        ...getRecordYears(currentUser.timeRecords)
+    ]);
+
+    await loadHolidayYears([...yearsToLoad]);
+    renderCalendar();
+    await updateProgress();
+    renderMonthlyTotals();
+    renderDocuments();
+
+    if (document.getElementById('dtr').style.display === 'flex') {
+        await renderDtrReport();
+    }
 }
 
 // Calendar
@@ -356,8 +612,12 @@ function renderCalendar() {
             cell.classList.add('sunday');
         }
         
-        if (currentUser.holidays.includes(dateStr)) {
+        if (isHolidayDate(dateStr)) {
             cell.classList.add('holiday');
+        }
+
+        if (isAbsentDate(dateStr)) {
+            cell.classList.add('absent');
         }
         
         if (currentUser.timeRecords[dateStr]) {
@@ -398,21 +658,20 @@ function selectDate(dateStr) {
     
     if (currentUser.timeRecords[dateStr]) {
         const record = currentUser.timeRecords[dateStr];
-        document.getElementById('timeIn').value = record.timeIn;
-        document.getElementById('timeOut').value = record.timeOut;
+        setDropdownValue('timeIn', record.timeIn);
+        setDropdownValue('timeOut', record.timeOut);
     } else {
-        document.getElementById('timeIn').value = '';
-        document.getElementById('timeOut').value = '';
+        setDropdownValue('timeIn', '');
+        setDropdownValue('timeOut', '');
+        applyUsualTimesIfEmpty();
     }
     
     const isSunday = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]).getDay() === 0;
     document.getElementById('holidaySection').style.display = isSunday ? 'none' : 'flex';
-    
-    if (currentUser.holidays.includes(dateStr)) {
-        document.getElementById('toggleHolidayBtn').textContent = 'Unmark Holiday';
-    } else {
-        document.getElementById('toggleHolidayBtn').textContent = 'Mark Holiday';
-    }
+    document.getElementById('absenceSection').style.display = (isSunday || isHolidayDate(dateStr)) ? 'none' : 'flex';
+
+    updateHolidayButtonState(dateStr);
+    updateAbsenceButtonState(dateStr);
 }
 
 function saveTimeRecord() {
@@ -422,6 +681,7 @@ function saveTimeRecord() {
     const timeOut = document.getElementById('timeOut').value;
     
     if (!timeIn || !timeOut) return;
+    if (timeIn >= timeOut) return;
     
     const hours = calculateHours(timeIn, timeOut);
     
@@ -430,73 +690,113 @@ function saveTimeRecord() {
         timeOut: timeOut,
         hours: hours
     };
+
+    updateTimePreferences(timeIn, timeOut);
+
+    const absentIdx = currentUser.absences.indexOf(selectedDate);
+    if (absentIdx > -1) {
+        currentUser.absences.splice(absentIdx, 1);
+    }
     
     saveUsers();
-    renderCalendar();
-    updateProgress();
-    renderMonthlyTotals();
+    void refreshDashboard();
 }
 
 function deleteTimeRecord() {
     if (!selectedDate) return;
     
     delete currentUser.timeRecords[selectedDate];
+    const absentIdx = currentUser.absences.indexOf(selectedDate);
+    if (absentIdx > -1) {
+        currentUser.absences.splice(absentIdx, 1);
+    }
     saveUsers();
     
-    document.getElementById('timeIn').value = '';
-    document.getElementById('timeOut').value = '';
-    
-    renderCalendar();
-    updateProgress();
-    renderMonthlyTotals();
+    setDropdownValue('timeIn', '');
+    setDropdownValue('timeOut', '');
+
+    void refreshDashboard();
 }
 
 function toggleHoliday() {
     if (!selectedDate) return;
+
+    if (isApiHoliday(selectedDate) && !isManualHoliday(selectedDate)) {
+        return;
+    }
     
     const idx = currentUser.holidays.indexOf(selectedDate);
     if (idx > -1) {
         currentUser.holidays.splice(idx, 1);
-        document.getElementById('toggleHolidayBtn').textContent = 'Mark Holiday';
     } else {
         currentUser.holidays.push(selectedDate);
-        document.getElementById('toggleHolidayBtn').textContent = 'Unmark Holiday';
     }
     
     saveUsers();
-    renderCalendar();
+    void refreshDashboard();
+}
+
+function toggleAbsence() {
+    if (!selectedDate) return;
+
+    const dateParts = selectedDate.split('-');
+    const date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+    if (date.getDay() === 0 || isHolidayDate(selectedDate)) {
+        return;
+    }
+
+    const idx = currentUser.absences.indexOf(selectedDate);
+    if (idx > -1) {
+        currentUser.absences.splice(idx, 1);
+    } else {
+        currentUser.absences.push(selectedDate);
+        delete currentUser.timeRecords[selectedDate];
+        setDropdownValue('timeIn', '');
+        setDropdownValue('timeOut', '');
+    }
+
+    saveUsers();
+    void refreshDashboard();
 }
 
 // Progress
-function updateProgress() {
+async function updateProgress() {
+    const recordYears = getRecordYears();
+    await loadHolidayYears(recordYears);
+
+    const countableRecords = getCountableRecords();
     let totalHours = 0;
-    
-    Object.values(currentUser.timeRecords).forEach(record => {
+
+    countableRecords.forEach(([, record]) => {
         totalHours += record.hours;
     });
-    
-    const remaining = Math.max(1800 - totalHours, 0);
-    const avgPerDay = Object.keys(currentUser.timeRecords).length > 0 
-        ? totalHours / Object.keys(currentUser.timeRecords).length 
+
+    const remaining = Math.max(OJT_TARGET_HOURS - totalHours, 0);
+    const avgPerDay = countableRecords.length > 0
+        ? totalHours / countableRecords.length
         : 0;
-    
+
     document.getElementById('renderedHours').textContent = totalHours.toFixed(1);
     document.getElementById('remainingHours').textContent = remaining.toFixed(1);
-    
-    // Calculate estimated end date
-    if (totalHours > 0 && remaining > 0) {
+
+    if (totalHours > 0 && remaining > 0 && avgPerDay > 0) {
         const daysNeeded = Math.ceil(remaining / avgPerDay);
         const endDate = new Date();
         let daysAdded = 0;
+
         while (daysAdded < daysNeeded) {
             endDate.setDate(endDate.getDate() + 1);
-            if (endDate.getDay() !== 0) {
+            await ensureHolidayYearLoaded(endDate.getFullYear());
+
+            if (endDate.getDay() !== 0 && !isHolidayDate(formatLocalDateKey(endDate))) {
                 daysAdded++;
             }
         }
-        
+
         document.getElementById('endDateValue').textContent = 
             endDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    } else {
+        document.getElementById('endDateValue').textContent = 'Estimated Completion';
     }
 }
 
@@ -504,6 +804,10 @@ function getMonthlyTotals() {
     const monthlyTotals = {};
 
     Object.entries(currentUser.timeRecords).forEach(([dateStr, record]) => {
+        if (!isCountableWorkDate(dateStr)) {
+            return;
+        }
+
         const [year, month] = dateStr.split('-');
         const key = `${year}-${month}`;
 
@@ -675,9 +979,11 @@ function closeDtr() {
 }
 
 // DTR Report
-function renderDtrReport() {
+async function renderDtrReport() {
     const year = dtrCurrentDate.getFullYear();
     const month = dtrCurrentDate.getMonth();
+
+    await loadHolidayYears([year]);
     
     document.getElementById('dtrMonthYear').textContent = 
         dtrCurrentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -698,17 +1004,21 @@ function renderDtrReport() {
         const fullDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         
         const isSunday = date.getDay() === 0;
-        const isHoliday = currentUser.holidays.includes(dateStr);
+        const isHoliday = isHolidayDate(dateStr);
+        const isAbsent = isAbsentDate(dateStr);
         const hasEntry = currentUser.timeRecords[dateStr];
+        const countsTowardTotal = hasEntry && !isSunday && !isHoliday && !isAbsent;
         
         const tr = document.createElement('tr');
         
-        if (hasEntry) {
+        if (countsTowardTotal) {
             tr.classList.add('has-data');
         } else if (isSunday) {
             tr.classList.add('sunday');
         } else if (isHoliday) {
             tr.classList.add('holiday');
+        } else if (isAbsent) {
+            tr.classList.add('absent');
         }
         
         const tdDate = document.createElement('td');
@@ -731,22 +1041,27 @@ function renderDtrReport() {
         if (hasEntry) {
             tdHours.textContent = currentUser.timeRecords[dateStr].hours.toFixed(2) + ' hrs';
             tdHours.style.fontWeight = '700';
-            tdHours.style.color = '#059669';
-            totalHours += currentUser.timeRecords[dateStr].hours;
-            workDaysCount++;
+            tdHours.style.color = countsTowardTotal ? '#059669' : '#6b7280';
+            if (countsTowardTotal) {
+                totalHours += currentUser.timeRecords[dateStr].hours;
+                workDaysCount++;
+            }
         } else {
             tdHours.textContent = '-';
         }
         tr.appendChild(tdHours);
         
         const tdStatus = document.createElement('td');
-        if (hasEntry || isHoliday || isSunday) {
+        if (hasEntry || isHoliday || isSunday || isAbsent) {
             const statusBadge = document.createElement('span');
             statusBadge.classList.add('status-badge');
             
-            if (hasEntry) {
+            if (countsTowardTotal) {
                 statusBadge.classList.add('status-present');
                 statusBadge.textContent = 'Present';
+            } else if (isAbsent) {
+                statusBadge.classList.add('status-absent');
+                statusBadge.textContent = 'Absent';
             } else if (isHoliday) {
                 statusBadge.classList.add('status-holiday');
                 statusBadge.textContent = 'Holiday';
@@ -767,7 +1082,7 @@ function renderDtrReport() {
     document.getElementById('dtrTotalDays').textContent = workDaysCount;
     document.getElementById('dtrTotalHours').textContent = totalHours.toFixed(1);
     document.getElementById('dtrAvgHours').textContent = workDaysCount > 0 ? (totalHours / workDaysCount).toFixed(1) : '0';
-    document.getElementById('dtrRemaining').textContent = Math.max(1800 - totalHours, 0).toFixed(1);
+    document.getElementById('dtrRemaining').textContent = Math.max(OJT_TARGET_HOURS - totalHours, 0).toFixed(1);
     document.getElementById('dtrTotalHoursFooter').textContent = totalHours.toFixed(1) + ' hours';
     renderMonthlyTotals();
 }

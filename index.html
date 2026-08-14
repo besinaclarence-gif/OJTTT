@@ -57,6 +57,17 @@
         <div class="shape shape-1"></div>
         <div class="shape shape-2"></div>
         <div class="shape shape-3"></div>
+        <div class="shape shape-4"></div>
+        <div class="shape shape-5"></div>
+        <div class="shape shape-6"></div>
+    </div>
+
+    <!-- Gentle decorative fairies -->
+    <div class="fairy-garden" aria-hidden="true">
+        <span class="fairy fairy-one"></span>
+        <span class="fairy fairy-two"></span>
+        <span class="fairy fairy-three"></span>
+        <span class="fairy fairy-four"></span>
     </div>
 
     <!-- Login Page -->
@@ -187,12 +198,14 @@
                     <div class="selected-date-title" id="selectedDateTitle">Select a date</div>
                     <div class="time-input-row">
                         <div class="time-input">
-                            <label>Time In</label>
-                            <input type="time" id="timeIn">
+                            <label id="timeInLabel">Time In</label>
+                            <span class="time-helper" id="timeInHint">Usually 8:00 AM</span>
+                            <select id="timeIn"></select>
                         </div>
                         <div class="time-input">
-                            <label>Time Out</label>
-                            <input type="time" id="timeOut">
+                            <label id="timeOutLabel">Time Out</label>
+                            <span class="time-helper" id="timeOutHint">Usually 6:00 PM</span>
+                            <select id="timeOut"></select>
                         </div>
                     </div>
                     <div class="button-row">
@@ -201,6 +214,9 @@
                     </div>
                     <div class="button-row" id="holidaySection" style="display: none;">
                         <button class="btn btn-tertiary" id="toggleHolidayBtn">Mark Holiday</button>
+                    </div>
+                    <div class="button-row" id="absenceSection" style="display: none;">
+                        <button class="btn btn-secondary" id="toggleAbsentBtn">Mark Absent</button>
                     </div>
                 </div>
 
