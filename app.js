@@ -24,6 +24,8 @@ let holidayCache = {};
 const OJT_TARGET_HOURS = 1800;
 const HOLIDAY_COUNTRY_CODE = 'PH';
 const HOLIDAY_API_BASE_URL = 'https://date.nager.at/api/v3/PublicHolidays';
+const LUNCH_START_MINUTES = 12 * 60;
+const LUNCH_END_MINUTES = 13 * 60;
 
 // Initialize app
 function initApp() {
@@ -99,6 +101,7 @@ function loadUsers() {
         }
     }
 
+    let recordsUpdated = false;
     Object.values(users).forEach(user => {
         if (!user.absences) {
             user.absences = [];
@@ -106,7 +109,18 @@ function loadUsers() {
         if (!user.timePreferences) {
             user.timePreferences = { timeIn: '08:00', timeOut: '18:00' };
         }
+        Object.values(user.timeRecords || {}).forEach(record => {
+            if (!record?.timeIn || !record?.timeOut) return;
+
+            const hours = calculateHours(record.timeIn, record.timeOut);
+            if (record.hours !== hours) {
+                record.hours = hours;
+                recordsUpdated = true;
+            }
+        });
     });
+
+    if (recordsUpdated) saveUsers();
 }
 
 // Save users to localStorage
@@ -325,15 +339,19 @@ function formatTime(timeStr) {
 function calculateHours(timeIn, timeOut) {
     const [inH, inM] = timeIn.split(':').map(Number);
     const [outH, outM] = timeOut.split(':').map(Number);
-    
-    let totalMinutes = (outH * 60 + outM) - (inH * 60 + inM);
-    
-    // Subtract 1 hour lunch break if working 6+ hours, then cap one day at 8 credited hours.
-    if (totalMinutes >= 360) {
-        totalMinutes -= 60;
-    }
-    
-    return parseFloat(Math.min(totalMinutes / 60, 8).toFixed(2));
+
+    const timeInMinutes = inH * 60 + inM;
+    const timeOutMinutes = outH * 60 + outM;
+    const workedMinutes = timeOutMinutes - timeInMinutes;
+
+    // Exclude only the portion of the fixed 12:00 PM–1:00 PM lunch break
+    // that falls within the recorded shift.
+    const lunchMinutes = Math.max(
+        0,
+        Math.min(timeOutMinutes, LUNCH_END_MINUTES) - Math.max(timeInMinutes, LUNCH_START_MINUTES)
+    );
+
+    return parseFloat(((workedMinutes - lunchMinutes) / 60).toFixed(2));
 }
 
 function getMostCommonTime(type) {
