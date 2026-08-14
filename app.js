@@ -1,5 +1,15 @@
 // Default users data (including Clarence as initial user)
 const DEFAULT_USERS = {
+    "admin@ojt.local": {
+        password: "Admin@123",
+        name: "OJT Administrator",
+        role: "admin",
+        timeRecords: {},
+        holidays: [],
+        absences: [],
+        timePreferences: { timeIn: '08:00', timeOut: '18:00' },
+        documents: { daily: [], weekly: [], monthly: [] }
+    },
     "besina.clarence@llcc.edu.ph": {
         password: "LLCCITD@008",
         name: "Clarence Besina",
@@ -22,6 +32,7 @@ let dtrCurrentDate = new Date();
 let holidayCache = {};
 
 const OJT_TARGET_HOURS = 1800;
+const ADMIN_EMAIL = 'admin@ojt.local';
 const HOLIDAY_COUNTRY_CODE = 'PH';
 const HOLIDAY_API_BASE_URL = 'https://date.nager.at/api/v3/PublicHolidays';
 const LUNCH_START_MINUTES = 12 * 60;
@@ -99,6 +110,12 @@ function loadUsers() {
             users = { ...DEFAULT_USERS };
             saveUsers();
         }
+    }
+
+    // Keep the administrator account available for existing installations too.
+    if (!users[ADMIN_EMAIL]) {
+        users[ADMIN_EMAIL] = { ...DEFAULT_USERS[ADMIN_EMAIL] };
+        saveUsers();
     }
 
     let recordsUpdated = false;
@@ -220,9 +237,14 @@ function loginUser(email, saveState = true) {
         localStorage.setItem('currentUserEmail', email);
     }
 
-    populateTimeDropdowns();
-    
     document.getElementById('loginPage').style.display = 'none';
+    if (currentUser.role === 'admin') {
+        document.getElementById('adminApp').style.display = 'flex';
+        renderAdminDashboard();
+        return;
+    }
+
+    populateTimeDropdowns();
     document.getElementById('mainApp').style.display = 'flex';
     
     // Update student info in DTR
@@ -238,6 +260,7 @@ function logout() {
     currentUser = null;
     localStorage.removeItem('currentUserEmail');
     document.getElementById('mainApp').style.display = 'none';
+    document.getElementById('adminApp').style.display = 'none';
     document.getElementById('loginPage').style.display = 'flex';
     
     // Clear form
@@ -249,6 +272,7 @@ function logout() {
 function setupAppListeners() {
     // Logout button
     document.getElementById('logoutBtn').addEventListener('click', logout);
+    document.getElementById('adminLogoutBtn').addEventListener('click', logout);
     
     // Calendar navigation
     document.getElementById('prevMonth').addEventListener('click', () => {
@@ -352,6 +376,69 @@ function calculateHours(timeIn, timeOut) {
     );
 
     return parseFloat(((workedMinutes - lunchMinutes) / 60).toFixed(2));
+}
+
+function renderAdminDashboard() {
+    const studentEntries = Object.entries(users)
+        .filter(([, user]) => user.role !== 'admin')
+        .sort(([, studentA], [, studentB]) => studentA.name.localeCompare(studentB.name));
+    const studentsBody = document.getElementById('adminStudentsBody');
+    const recordsBody = document.getElementById('adminRecordsBody');
+    const totalStudents = document.getElementById('adminStudentCount');
+    const totalHours = document.getElementById('adminTotalHours');
+
+    let allHours = 0;
+    let recordCount = 0;
+    studentsBody.innerHTML = '';
+    recordsBody.innerHTML = '';
+
+    const appendRow = (body, values, emphasizedColumn) => {
+        const row = document.createElement('tr');
+        values.forEach((value, index) => {
+            const cell = document.createElement('td');
+            cell.textContent = value;
+            if (index === emphasizedColumn) cell.className = 'admin-hours';
+            row.appendChild(cell);
+        });
+        body.appendChild(row);
+    };
+
+    studentEntries.forEach(([email, student]) => {
+        const records = Object.entries(student.timeRecords || {}).sort(([dateA], [dateB]) => dateB.localeCompare(dateA));
+        const hours = records.reduce((total, [, record]) => total + Number(record.hours || 0), 0);
+        allHours += hours;
+        recordCount += records.length;
+
+        appendRow(studentsBody, [
+            student.name,
+            email,
+            student.course || '-',
+            student.school || '-',
+            records.length,
+            `${hours.toFixed(2)} hrs`
+        ], 5);
+
+        records.forEach(([date, record]) => {
+            appendRow(recordsBody, [
+                student.name,
+                date,
+                formatTime(record.timeIn),
+                formatTime(record.timeOut),
+                `${Number(record.hours || 0).toFixed(2)} hrs`
+            ], 4);
+        });
+    });
+
+    totalStudents.textContent = studentEntries.length;
+    totalHours.textContent = allHours.toFixed(1);
+    document.getElementById('adminRecordCount').textContent = recordCount;
+
+    if (studentEntries.length === 0) {
+        studentsBody.innerHTML = '<tr><td colspan="6" class="admin-empty">No students have registered yet.</td></tr>';
+    }
+    if (recordCount === 0) {
+        recordsBody.innerHTML = '<tr><td colspan="5" class="admin-empty">No time records have been saved yet.</td></tr>';
+    }
 }
 
 function getMostCommonTime(type) {
