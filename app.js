@@ -299,12 +299,16 @@ function setupAppListeners() {
             // Hide all overlays first
             document.getElementById('reports').style.display = 'none';
             document.getElementById('dtr').style.display = 'none';
+            document.getElementById('mapping').style.display = 'none';
             
             if (tabId === 'reports') {
                 document.getElementById('reports').style.display = 'flex';
             } else if (tabId === 'dtr') {
                 document.getElementById('dtr').style.display = 'flex';
                 renderDtrReport();
+            } else if (tabId === 'mapping') {
+                document.getElementById('mapping').style.display = 'flex';
+                renderMappingPage();
             }
             
             // Update active tab button
@@ -326,6 +330,11 @@ function setupAppListeners() {
             closeDtr();
         }
     });
+
+    document.getElementById('mapping').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('mapping')) closeMapping();
+    });
+    document.getElementById('closeMappingBtn').addEventListener('click', closeMapping);
     
     // DTR Navigation
     document.getElementById('dtrPrevMonth').addEventListener('click', () => {
@@ -670,6 +679,7 @@ async function refreshDashboard() {
     await updateProgress();
     renderMonthlyTotals();
     renderOjtMapping();
+    if (document.getElementById('mapping').style.display === 'flex') renderMappingPage();
     renderDocuments();
 
     if (document.getElementById('dtr').style.display === 'flex') {
@@ -1007,6 +1017,120 @@ function renderOjtMapping() {
     document.getElementById('semesterGrandTotal').textContent = grandTotal.toFixed(1);
 }
 
+function getMappingMonths() {
+    const recordDates = Object.keys(currentUser.timeRecords).sort();
+    const firstRecordedMonth = recordDates.length ? new Date(`${recordDates[0].slice(0, 7)}-01T00:00:00`) : new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const lastRecordedMonth = recordDates.length ? new Date(`${recordDates[recordDates.length - 1].slice(0, 7)}-01T00:00:00`) : firstRecordedMonth;
+    const firstSemester = firstRecordedMonth.getMonth() >= 5 && firstRecordedMonth.getMonth() <= 10;
+    const lastSemester = lastRecordedMonth.getMonth() >= 5 && lastRecordedMonth.getMonth() <= 10;
+    const start = firstSemester
+        ? new Date(firstRecordedMonth.getFullYear(), 5, 1)
+        : new Date(firstRecordedMonth.getFullYear() - (firstRecordedMonth.getMonth() < 5 ? 1 : 0), 11, 1);
+    const end = lastSemester
+        ? new Date(lastRecordedMonth.getFullYear(), 10, 1)
+        : new Date(lastRecordedMonth.getFullYear() + (lastRecordedMonth.getMonth() === 11 ? 1 : 0), 4, 1);
+    const months = [];
+    const cursor = new Date(start);
+    while (cursor <= end) {
+        months.push(new Date(cursor));
+        cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return months;
+}
+
+function getMonthRecordTotal(year, month) {
+    return Object.entries(currentUser.timeRecords).reduce((total, [dateStr, record]) => {
+        const date = new Date(`${dateStr}T00:00:00`);
+        return date.getFullYear() === year && date.getMonth() === month && isCountableWorkDate(dateStr)
+            ? total + Number(record.hours || 0)
+            : total;
+    }, 0);
+}
+
+function renderMappingPage() {
+    const grid = document.getElementById('mappingMonthsGrid');
+    const totalsBody = document.getElementById('mappingPageTotals');
+    if (!grid || !totalsBody) return;
+
+    const months = getMappingMonths();
+    let firstSemesterTotal = 0;
+    let secondSemesterTotal = 0;
+    let grandTotal = 0;
+    grid.innerHTML = '';
+    totalsBody.innerHTML = '';
+
+    months.forEach(monthDate => {
+        const year = monthDate.getFullYear();
+        const month = monthDate.getMonth();
+        const total = getMonthRecordTotal(year, month);
+        const label = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        grandTotal += total;
+        if (month >= 5 && month <= 10) firstSemesterTotal += total;
+        else secondSemesterTotal += total;
+
+        const totalRow = document.createElement('tr');
+        totalRow.innerHTML = `<td>${label}</td><td>${total.toFixed(1)}</td>`;
+        totalsBody.appendChild(totalRow);
+        grid.appendChild(createMappingMonthCard(year, month, total));
+    });
+
+    const firstMonth = months[0];
+    const semesterLabel = firstMonth.getMonth() >= 5 && firstMonth.getMonth() <= 10 ? '1st Semester' : '2nd Semester';
+    document.getElementById('mappingPageTitle').textContent = `Mapping of ${semesterLabel} OJT Hours`;
+    document.getElementById('mappingPageSubtitle').textContent = `${months.length} month${months.length === 1 ? '' : 's'} displayed — all recorded OJT months`;
+    document.getElementById('mappingPageGrandTotal').textContent = grandTotal.toFixed(1);
+    document.getElementById('mappingFirstSemester').textContent = firstSemesterTotal.toFixed(1);
+    document.getElementById('mappingSecondSemester').textContent = secondSemesterTotal.toFixed(1);
+    document.getElementById('mappingSemesterGrand').textContent = grandTotal.toFixed(1);
+    document.getElementById('mappingStatus').textContent = grandTotal >= OJT_TARGET_HOURS ? 'COMPLETE OJT HOURS' : 'INCOMPLETE OJT HOURS';
+}
+
+function createMappingMonthCard(year, month, total) {
+    const card = document.createElement('section');
+    card.className = 'mapping-month-card';
+    const title = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    const firstDay = new Date(year, month, 1).getDay();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const weeks = [];
+    let week = new Array(7).fill(null);
+    for (let i = 0; i < firstDay; i++) week[i] = 'outside';
+    for (let day = 1; day <= lastDay; day++) {
+        week[(firstDay + day - 1) % 7] = day;
+        if ((firstDay + day) % 7 === 0 || day === lastDay) {
+            weeks.push(week);
+            week = new Array(7).fill(null);
+        }
+    }
+
+    card.innerHTML = `<div class="mapping-month-title">${title}</div><div class="mapping-week-head"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Week</span></div>`;
+    weeks.forEach(days => {
+        const row = document.createElement('div');
+        row.className = 'mapping-week-row';
+        let weekTotal = 0;
+        days.forEach(day => {
+            const cell = document.createElement('span');
+            if (typeof day !== 'number') {
+                cell.className = 'mapping-day muted';
+            } else {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const record = currentUser.timeRecords[dateStr];
+                const hours = record && isCountableWorkDate(dateStr) ? Number(record.hours || 0) : 0;
+                weekTotal += hours;
+                cell.className = `mapping-day${record ? ' has-hours' : ''}`;
+                cell.innerHTML = `${day}${hours ? `<b>${hours.toFixed(1)}</b>` : ''}`;
+            }
+            row.appendChild(cell);
+        });
+        const weekCell = document.createElement('strong');
+        weekCell.className = 'mapping-week-total';
+        weekCell.textContent = weekTotal ? weekTotal.toFixed(1) : '–';
+        row.appendChild(weekCell);
+        card.appendChild(row);
+    });
+    card.insertAdjacentHTML('beforeend', `<div class="mapping-month-total"><span>Monthly Total</span><strong>${total.toFixed(1)}</strong></div>`);
+    return card;
+}
+
 // Documents
 function renderDocuments() {
     renderDocumentList('daily');
@@ -1119,6 +1243,12 @@ function closeReports() {
 function closeDtr() {
     document.getElementById('dtr').style.display = 'none';
     document.querySelector('.tab-btn[data-tab="calendar"]').classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.tab-btn[data-tab="calendar"]').classList.add('active');
+}
+
+function closeMapping() {
+    document.getElementById('mapping').style.display = 'none';
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('.tab-btn[data-tab="calendar"]').classList.add('active');
 }

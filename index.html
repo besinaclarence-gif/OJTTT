@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OJT Time Tracker</title>
-    <link rel="stylesheet" href="style.css?v=ojt-mapping-1">
+    <link rel="stylesheet" href="style.css?v=ojt-mapping-2">
     <style>
         /* Print styles for PDF export */
         @media print {
@@ -213,6 +213,7 @@
                 <!-- Tabs -->
                 <div class="tabs-container">
                     <button class="tab-btn active" data-tab="calendar">📅 Calendar</button>
+                    <button class="tab-btn" data-tab="mapping">🗺️ Mapping</button>
                     <button class="tab-btn" data-tab="dtr">📊 DTR Report</button>
                     <button class="tab-btn" data-tab="reports">📁 Documents</button>
                 </div>
@@ -463,6 +464,38 @@
         </div>
     </div>
 
+    <!-- Multi-month OJT Mapping -->
+    <div id="mapping" class="reports-overlay mapping-overlay" style="display: none;">
+        <div class="mapping-page">
+            <div class="mapping-page-header">
+                <div>
+                    <p class="mapping-page-kicker">OJT Time Tracker</p>
+                    <h2 id="mappingPageTitle">OJT Hours Mapping</h2>
+                    <p id="mappingPageSubtitle">All recorded months at a glance</p>
+                </div>
+                <button class="close-reports" id="closeMappingBtn" aria-label="Close mapping">✕</button>
+            </div>
+            <div class="mapping-page-body">
+                <div class="mapping-months-grid" id="mappingMonthsGrid"></div>
+                <aside class="mapping-summary-panel">
+                    <table class="mapping-summary-table">
+                        <thead><tr><th>OJT Hrs Per Month</th><th>Total</th></tr></thead>
+                        <tbody id="mappingPageTotals"></tbody>
+                        <tfoot><tr><th>Total OJT Hours</th><td id="mappingPageGrandTotal">0.0</td></tr></tfoot>
+                    </table>
+                    <div class="mapping-semester-table">
+                        <div class="mapping-semester-heading">Semester</div>
+                        <div><span>1st</span><strong id="mappingFirstSemester">0.0</strong></div>
+                        <div><span>2nd</span><strong id="mappingSecondSemester">0.0</strong></div>
+                        <div class="mapping-grand"><span>Grand Total</span><strong id="mappingSemesterGrand">0.0</strong></div>
+                    </div>
+                    <div class="mapping-target-row"><span>Target Total OJT Hrs</span><strong>1,800</strong></div>
+                    <div class="mapping-status" id="mappingStatus">IN PROGRESS</div>
+                </aside>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal -->
     <div class="modal" id="previewModal">
         <div class="modal-content">
@@ -474,6 +507,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=ojt-mapping-1"></script>
+    <script src="app.js?v=ojt-mapping-2"></script>
 </body>
 </html>
