@@ -1950,3 +1950,53 @@ body::before {
     .fairy-three,
     .fairy-four { display: none; }
 }
+
+/* Mapping page visual refinement */
+.mapping-overlay { background: rgba(20, 50, 35, .45); backdrop-filter: blur(7px); }
+.mapping-page { padding: 28px; border: 0; border-radius: 22px; background: linear-gradient(145deg, #ffffff 0%, #f7fbf8 100%); box-shadow: 0 28px 75px rgba(10, 42, 27, .30); }
+.mapping-page-header { align-items: center; padding: 0 0 20px; border-bottom: 1px solid #d9e8de; }
+.mapping-page-header h2 { color: #163d2a; font-size: clamp(1.25rem, 2.1vw, 1.75rem); letter-spacing: -.025em; }
+.mapping-page-header p { color: #6a8174; font-size: .86rem; }
+.mapping-page-kicker { display: flex; align-items: center; gap: 6px; color: #1d794e !important; }
+.mapping-page-kicker::before { width: 7px; height: 7px; border-radius: 50%; background: #2aae69; content: ''; }
+.mapping-page-header .close-reports { width: 42px; height: 42px; padding: 0; border-radius: 13px; background: #1e8a58; box-shadow: 0 8px 18px rgba(30, 138, 88, .22); }
+.mapping-page-header .close-reports:hover { transform: translateY(-2px); background: #176c45; }
+.mapping-page-body { gap: 24px; padding-top: 24px; }
+.mapping-months-grid { gap: 20px; }
+.mapping-month-card { border: 1px solid #d8e4dc; border-radius: 14px; box-shadow: 0 8px 20px rgba(36, 70, 51, .08); overflow: hidden; transition: transform .2s ease, box-shadow .2s ease; }
+.mapping-month-card:hover { transform: translateY(-3px); box-shadow: 0 14px 28px rgba(36, 70, 51, .13); }
+.mapping-month-title { padding: 10px 8px; color: #fff; font-size: .82rem; letter-spacing: .01em; background: linear-gradient(135deg, #174f82, #397bc9); }
+.mapping-week-head { color: #31628d; font-size: .67rem; background: #eaf3fc; }
+.mapping-week-head span { padding: 7px 2px; border-right: 1px solid #d6e3ef; }
+.mapping-week-row { min-height: 46px; border-bottom-color: #e1e8e3; }
+.mapping-day, .mapping-week-total { border-right-color: #e1e8e3; font-size: .71rem; }
+.mapping-day { color: #254634; }
+.mapping-day.muted { background: #f8faf8; }
+.mapping-day.has-hours { color: #0e497b; background: linear-gradient(180deg, #f5fbff, #eaf6ff); }
+.mapping-day b { margin-top: 2px; color: #0c9963; font-size: .64rem; }
+.mapping-week-total { color: #194d7c; background: #f0f7fd; }
+.mapping-month-total { padding: 8px 10px; color: #164f80; background: #f4f8fb; font-size: .72rem; }
+.mapping-month-total strong { color: #0e704a; font-size: .82rem; }
+.mapping-summary-panel { position: sticky; top: 0; overflow: hidden; border: 1px solid #cbdcd1; border-radius: 14px; box-shadow: 0 10px 24px rgba(36, 70, 51, .11); }
+.mapping-summary-table thead { background: linear-gradient(135deg, #174f82, #397bc9); }
+.mapping-summary-table th, .mapping-summary-table td { padding: 8px 10px; border-color: #d5e0d9; }
+.mapping-summary-table tbody tr:nth-child(even) { background: #f7fbf8; }
+.mapping-summary-table tbody tr:hover { background: #ecf7f0; }
+.mapping-summary-table tfoot { color: #12406a; background: #e9f3fb; }
+.mapping-semester-table { margin-top: 14px; border-top: 0; border-bottom-color: #d5e0d9; }
+.mapping-semester-table > div { padding: 8px 5px; border-right-color: #d5e0d9; }
+.mapping-semester-heading { color: #fff; background: #174f82; }
+.mapping-semester-table strong { color: #0d7650; font-size: .9rem; }
+.mapping-semester-table .mapping-grand { background: #eef8ef; }
+.mapping-target-row { padding: 8px 10px; background: linear-gradient(90deg, #0b9b4b, #23b568); }
+.mapping-status { padding: 8px; border-top: 1px solid #f5c4c0; font-size: .69rem; letter-spacing: .025em; }
+
+@media (max-width: 900px) {
+    .mapping-summary-panel { position: static; }
+}
+
+@media (max-width: 560px) {
+    .mapping-page { padding: 18px; border-radius: 16px; }
+    .mapping-page-header { align-items: flex-start; }
+    .mapping-week-row { min-height: 42px; }
+}
