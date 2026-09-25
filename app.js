@@ -669,6 +669,7 @@ async function refreshDashboard() {
     renderCalendar();
     await updateProgress();
     renderMonthlyTotals();
+    renderOjtMapping();
     renderDocuments();
 
     if (document.getElementById('dtr').style.display === 'flex') {
@@ -919,6 +920,7 @@ function getMonthlyTotals() {
         if (!monthlyTotals[key]) {
             const monthDate = new Date(Number(year), Number(month) - 1, 1);
             monthlyTotals[key] = {
+                key,
                 label: monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
                 totalHours: 0
             };
@@ -965,6 +967,44 @@ function renderMonthlyTotals() {
             list.appendChild(item);
         });
     });
+}
+
+function renderOjtMapping() {
+    const monthBody = document.getElementById('ojtMappingMonths');
+    if (!monthBody) return;
+
+    const monthlyTotals = getMonthlyTotals();
+    const firstSemesterMonths = new Set([5, 6, 7, 8, 9, 10]);
+    let firstSemesterTotal = 0;
+    let secondSemesterTotal = 0;
+    let grandTotal = 0;
+
+    monthBody.innerHTML = '';
+
+    if (monthlyTotals.length === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.className = 'mapping-empty-row';
+        emptyRow.innerHTML = '<td colspan="2">No OJT hours recorded yet.</td>';
+        monthBody.appendChild(emptyRow);
+    } else {
+        monthlyTotals.forEach(month => {
+            const date = new Date(`${month.key}-01T00:00:00`);
+            const total = Number(month.totalHours) || 0;
+            grandTotal += total;
+
+            if (firstSemesterMonths.has(date.getMonth())) firstSemesterTotal += total;
+            else secondSemesterTotal += total;
+
+            const row = document.createElement('tr');
+            row.innerHTML = `<td>${month.label}</td><td>${total.toFixed(1)}</td>`;
+            monthBody.appendChild(row);
+        });
+    }
+
+    document.getElementById('firstSemesterHours').textContent = firstSemesterTotal.toFixed(1);
+    document.getElementById('secondSemesterHours').textContent = secondSemesterTotal.toFixed(1);
+    document.getElementById('ojtMappingGrandTotal').textContent = grandTotal.toFixed(1);
+    document.getElementById('semesterGrandTotal').textContent = grandTotal.toFixed(1);
 }
 
 // Documents

@@ -605,6 +605,36 @@ body::after {
     background: white;
 }
 
+/* OJT hours mapping */
+.ojt-mapping-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+.ojt-mapping-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; color: #fff; background: linear-gradient(135deg, var(--green-1), var(--green-2)); }
+.mapping-kicker { margin: 0 0 2px; color: rgba(255, 255, 255, .72); font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.ojt-mapping-heading h4 { margin: 0; font-size: .98rem; }
+.mapping-target { padding: 4px 7px; border: 1px solid rgba(255, 255, 255, .3); border-radius: 999px; font-size: .7rem; font-weight: 700; white-space: nowrap; }
+.mapping-table-wrap { max-height: 160px; overflow-y: auto; }
+.mapping-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.mapping-table th, .mapping-table td { padding: 7px 14px; border-bottom: 1px solid var(--border); }
+.mapping-table thead { background: var(--green-5); color: var(--text-1); }
+.mapping-table th { font-weight: 800; text-align: left; }
+.mapping-table th:last-child, .mapping-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.mapping-table tbody tr:nth-child(even) { background: #fbfdfb; }
+.mapping-table tfoot { background: #e5f4e9; color: var(--green-1); }
+.mapping-empty-row td { color: var(--text-2); font-style: italic; text-align: center !important; }
+.semester-summary { display: grid; grid-template-columns: 1.25fr repeat(3, 1fr); border-top: 1px solid var(--border); font-size: .72rem; }
+.semester-summary-title, .semester-total { padding: 8px 10px; }
+.semester-summary-title { color: var(--text-2); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.semester-total { border-left: 1px solid var(--border); text-align: center; }
+.semester-total span { display: block; color: var(--text-2); font-weight: 700; }
+.semester-total small { font-size: .62rem; font-weight: 600; white-space: nowrap; }
+.semester-total strong { display: block; margin-top: 2px; color: var(--green-1); font-size: .9rem; }
+.semester-total.grand { background: var(--green-5); }
+
+@media (max-width: 520px) {
+    .semester-summary { grid-template-columns: 1fr 1fr; }
+    .semester-summary-title { grid-column: 1 / -1; text-align: center; }
+    .semester-total.grand { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--border); }
+}
+
 /* Calendar Card */
 .calendar-card {
     flex: 1;

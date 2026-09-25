@@ -173,6 +173,30 @@
                     <div class="monthly-totals-list dashboard-monthly-totals-list" id="dashboardMonthlyTotalsList"></div>
                 </div>
 
+                <!-- OJT Hours Mapping -->
+                <section class="ojt-mapping-card" aria-labelledby="ojtMappingTitle">
+                    <div class="ojt-mapping-heading">
+                        <div>
+                            <p class="mapping-kicker">OJT progress overview</p>
+                            <h4 id="ojtMappingTitle">OJT Hours Mapping</h4>
+                        </div>
+                        <span class="mapping-target">Target: 1,800 hrs</span>
+                    </div>
+                    <div class="mapping-table-wrap">
+                        <table class="mapping-table">
+                            <thead><tr><th>OJT Hours per Month</th><th>Total</th></tr></thead>
+                            <tbody id="ojtMappingMonths"></tbody>
+                            <tfoot><tr><th>Total OJT Hours</th><td id="ojtMappingGrandTotal">0.0</td></tr></tfoot>
+                        </table>
+                    </div>
+                    <div class="semester-summary" aria-label="Semester hour totals">
+                        <div class="semester-summary-title">Semester</div>
+                        <div class="semester-total"><span>1st <small>(Jun–Nov)</small></span><strong id="firstSemesterHours">0.0</strong></div>
+                        <div class="semester-total"><span>2nd <small>(Dec–May)</small></span><strong id="secondSemesterHours">0.0</strong></div>
+                        <div class="semester-total grand"><span>Grand Total</span><strong id="semesterGrandTotal">0.0</strong></div>
+                    </div>
+                </section>
+
                 <!-- Calendar -->
                 <div class="calendar-card">
                     <div class="calendar-header">
